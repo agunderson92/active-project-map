@@ -61,12 +61,9 @@ Tab via the Lightning App Builder.
 
 ## Assumptions worth confirming
 
-- **`Project_Developer__c` is treated as a text/name field.** If it's actually a
-  User lookup, change the SOQL in `getActiveProjects()` from
-  `Project_Developer__c` to `Project_Developer__r.Name` (and update the DTO
-  assignment).
-- `Production_Coordinator__c` and `Lead_Carpenter_on_Project__c` are treated as
-  **User lookups** (queried via `...__r.Name`), per your description.
+- `Project_Developer__c`, `Production_Coordinator__c`, and
+  `Lead_Carpenter_on_Project__c` are all treated as **User lookups** (queried via
+  `...__r.Name`).
 - Currency is formatted as **USD**. Adjust `formatCurrency` in the LWC for
   multi-currency orgs.
 

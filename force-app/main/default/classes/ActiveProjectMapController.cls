@@ -15,7 +15,7 @@ public with sharing class ActiveProjectMapController {
     @AuraEnabled(cacheable=true)
     public static List<ProjectMarker> getActiveProjects() {
         List<Project__c> projects = [
-            SELECT Id, Name, Job_Number_Project__c, Project_Developer__c,
+            SELECT Id, Name, Job_Number_Project__c, Project_Developer__r.Name,
                    Project_Stage__c, Project_Start_Date__c, Project_Close_Date__c,
                    Smartsheet_Link_Project__c,
                    Production_Coordinator__r.Name, Lead_Carpenter_on_Project__r.Name,
@@ -69,7 +69,7 @@ public with sharing class ActiveProjectMapController {
             m.recordUrl = '/' + p.Id;
             m.name = p.Name;
             m.jobNumber = p.Job_Number_Project__c;
-            m.developer = p.Project_Developer__c;
+            m.developer = (p.Project_Developer__r != null) ? p.Project_Developer__r.Name : null;
             m.stage = p.Project_Stage__c;
             m.coordinator = (p.Production_Coordinator__r != null) ? p.Production_Coordinator__r.Name : null;
             m.leadCarpenter = (p.Lead_Carpenter_on_Project__r != null) ? p.Lead_Carpenter_on_Project__r.Name : null;
