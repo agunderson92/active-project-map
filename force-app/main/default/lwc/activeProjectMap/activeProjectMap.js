@@ -2,7 +2,7 @@ import { LightningElement, wire, track } from 'lwc';
 import { NavigationMixin } from 'lightning/navigation';
 import getActiveProjects from '@salesforce/apex/ActiveProjectMapController.getActiveProjects';
 
-// Stage -> badge color. Order also drives the legend.
+// Stage -> badge color. Order also drives the legend and stage filter.
 const STAGE_COLORS = {
     'PC Review': '#7f8de1',
     'Signed & Returned': '#5867e8',
@@ -13,28 +13,145 @@ const STAGE_COLORS = {
     'Final Walkthrough': '#ca1b21'
 };
 const DEFAULT_COLOR = '#706e6b';
+const ALL = '';
 
 export default class ActiveProjectMap extends NavigationMixin(LightningElement) {
-    @track markers = [];
     @track selected;
     projects = [];
     error;
     isLoading = true;
+
+    // Filter state
+    selectedStages = [];
+    selectedDeveloper = ALL;
+    startFrom = null;
+    startTo = null;
 
     @wire(getActiveProjects)
     wiredProjects({ data, error }) {
         this.isLoading = false;
         if (data) {
             this.projects = data;
-            this.markers = data
-                .map((p) => this.toMapMarker(p))
-                .filter((m) => m !== null);
             this.error = undefined;
         } else if (error) {
             this.error = this.reduceError(error);
-            this.markers = [];
+            this.projects = [];
         }
     }
+
+    // ---- Filtering -------------------------------------------------------
+
+    get filteredProjects() {
+        const stages = this.selectedStages;
+        const dev = this.selectedDeveloper;
+        const from = this.startFrom;
+        const to = this.startTo;
+
+        return this.projects.filter((p) => {
+            if (stages.length && !stages.includes(p.stage)) {
+                return false;
+            }
+            if (dev && p.developer !== dev) {
+                return false;
+            }
+            if (from || to) {
+                if (!p.startDate) return false; // no date can't match a bounded range
+                if (from && p.startDate < from) return false;
+                if (to && p.startDate > to) return false;
+            }
+            return true;
+        });
+    }
+
+    get markers() {
+        return this.filteredProjects
+            .map((p) => this.toMapMarker(p))
+            .filter((m) => m !== null);
+    }
+
+    get hasMarkers() {
+        return this.markers.length > 0;
+    }
+
+    get hasProjects() {
+        return this.projects.length > 0;
+    }
+
+    get resultCount() {
+        const shown = this.filteredProjects.length;
+        return `${shown} of ${this.projects.length} active project${
+            this.projects.length === 1 ? '' : 's'
+        }`;
+    }
+
+    get stageOptions() {
+        return Object.keys(STAGE_COLORS).map((stage) => ({
+            label: stage,
+            value: stage
+        }));
+    }
+
+    get developerOptions() {
+        const names = [
+            ...new Set(
+                this.projects
+                    .map((p) => p.developer)
+                    .filter((d) => d)
+            )
+        ].sort();
+        return [
+            { label: 'All developers', value: ALL },
+            ...names.map((n) => ({ label: n, value: n }))
+        ];
+    }
+
+    get filtersActive() {
+        return (
+            this.selectedStages.length > 0 ||
+            this.selectedDeveloper !== ALL ||
+            !!this.startFrom ||
+            !!this.startTo
+        );
+    }
+
+    handleStageChange(event) {
+        this.selectedStages = [...event.detail.value];
+        this.clearSelectionIfHidden();
+    }
+
+    handleDeveloperChange(event) {
+        this.selectedDeveloper = event.detail.value;
+        this.clearSelectionIfHidden();
+    }
+
+    handleStartFromChange(event) {
+        this.startFrom = event.detail.value || null;
+        this.clearSelectionIfHidden();
+    }
+
+    handleStartToChange(event) {
+        this.startTo = event.detail.value || null;
+        this.clearSelectionIfHidden();
+    }
+
+    handleClearFilters() {
+        this.selectedStages = [];
+        this.selectedDeveloper = ALL;
+        this.startFrom = null;
+        this.startTo = null;
+    }
+
+    // Drop the detail panel if the selected project is no longer visible.
+    clearSelectionIfHidden() {
+        if (
+            this.selected &&
+            !this.filteredProjects.some((p) => p.id === this.selected.id)
+        ) {
+            this.selected = undefined;
+        }
+    }
+
+    // ---- Markers & detail ------------------------------------------------
 
     toMapMarker(p) {
         const hasCoords = p.latitude != null && p.longitude != null;
@@ -75,10 +192,6 @@ export default class ActiveProjectMap extends NavigationMixin(LightningElement) 
         if (p.stage) parts.push(p.stage);
         if (p.amount != null) parts.push(this.formatCurrency(p.amount));
         return parts.join(' • ');
-    }
-
-    get hasMarkers() {
-        return this.markers.length > 0;
     }
 
     get legend() {
@@ -122,6 +235,8 @@ export default class ActiveProjectMap extends NavigationMixin(LightningElement) 
             }
         });
     }
+
+    // ---- Formatting helpers ---------------------------------------------
 
     formatCurrency(value) {
         return new Intl.NumberFormat('en-US', {

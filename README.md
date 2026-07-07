@@ -26,6 +26,9 @@ details panel, and click-to-open navigation to the project record.
 - **Size/amount** in the tooltip comes from the parent Opportunity's `Amount`.
 - Coordinates (`Latitude`/`Longitude`) are preferred when present; otherwise the
   raw address string is passed to `lightning-map`, which geocodes it live.
+- **Filter bar** above the map — filter by **stage** (multi-select), **developer**,
+  and **project start date range**. Filtering is client-side over the loaded set,
+  so it's instant and shows a live "X of Y" result count.
 
 ## Recommended setup — stored geocoding (do this once)
 

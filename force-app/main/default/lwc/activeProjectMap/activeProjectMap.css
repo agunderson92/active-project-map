@@ -1,3 +1,42 @@
+.filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem 2rem;
+    padding: 0.75rem 0.25rem 1rem;
+    border-bottom: 1px solid #f3f2f2;
+    margin-bottom: 1rem;
+    align-items: flex-start;
+}
+
+.filter-stages {
+    min-width: 12rem;
+}
+
+.filter-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.75rem 1rem;
+}
+
+.filter-controls lightning-combobox,
+.filter-controls lightning-input {
+    min-width: 11rem;
+}
+
+.filter-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding-bottom: 0.1rem;
+}
+
+.result-count {
+    font-size: 0.8rem;
+    color: #706e6b;
+    white-space: nowrap;
+}
+
 .map-layout {
     display: flex;
     gap: 1rem;
