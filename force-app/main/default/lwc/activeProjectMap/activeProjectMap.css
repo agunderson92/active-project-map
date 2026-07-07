@@ -1,0 +1,119 @@
+.map-layout {
+    display: flex;
+    gap: 1rem;
+    min-height: 32rem;
+}
+
+.map-pane {
+    flex: 1 1 65%;
+    min-width: 0;
+    height: 32rem;
+}
+
+.detail-pane {
+    flex: 1 1 35%;
+    min-width: 16rem;
+    max-width: 24rem;
+}
+
+.detail-card {
+    border: 1px solid #dddbda;
+    border-radius: 0.25rem;
+    padding: 1rem;
+    background: #ffffff;
+}
+
+.detail-header {
+    margin-bottom: 0.75rem;
+}
+
+.detail-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-top: 0.4rem;
+}
+
+.stage-badge {
+    display: inline-block;
+    color: #ffffff;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.15rem 0.55rem;
+    border-radius: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.detail-list {
+    margin: 0 0 1rem 0;
+}
+
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.3rem 0;
+    border-bottom: 1px solid #f3f2f2;
+}
+
+.detail-row dt {
+    color: #706e6b;
+    font-size: 0.8rem;
+}
+
+.detail-row dd {
+    margin: 0;
+    text-align: right;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.detail-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.detail-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #706e6b;
+    border: 1px dashed #dddbda;
+    border-radius: 0.25rem;
+    padding: 2rem 1rem;
+    text-align: center;
+}
+
+.legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.75rem;
+    max-width: 40rem;
+    justify-content: flex-end;
+}
+
+.legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.7rem;
+    color: #514f4d;
+}
+
+.legend-swatch {
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+@media (max-width: 48rem) {
+    .map-layout {
+        flex-direction: column;
+    }
+    .detail-pane {
+        max-width: none;
+    }
+}
