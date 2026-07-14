@@ -1,6 +1,90 @@
 import { LightningElement, wire, track } from 'lwc';
 import { NavigationMixin } from 'lightning/navigation';
-import getActiveProjects from '@salesforce/apex/ActiveProjectMapController.getActiveProjects';
+import { gql, graphql } from 'lightning/uiGraphQLApi';
+
+// UI API returns each scalar wrapped as { value }.
+const val = (field) => (field ? field.value : null);
+
+// Query 1 — active projects, related users, parent Opportunity amount + Account
+// billing address. This always works (no OpportunityContactRole dependency).
+const PROJECTS_QUERY = gql`
+    query ActiveProjects {
+        uiapi {
+            query {
+                Project__c(
+                    where: { Project_Stage__c: { ne: "Archive" } }
+                    first: 250
+                    orderBy: { Project_Start_Date__c: { order: DESC } }
+                ) {
+                    edges {
+                        node {
+                            Id
+                            Name { value }
+                            Job_Number_Project__c { value }
+                            Project_Stage__c { value }
+                            Project_Start_Date__c { value }
+                            Project_Close_Date__c { value }
+                            Smartsheet_Link_Project__c { value }
+                            Project_Developer__r { Name { value } }
+                            Production_Coordinator__r { Name { value } }
+                            Lead_Carpenter_on_Project__r { Name { value } }
+                            Parent_Opportunity_of_Project__r {
+                                Id
+                                Amount { value }
+                                Account {
+                                    BillingStreet { value }
+                                    BillingCity { value }
+                                    BillingState { value }
+                                    BillingPostalCode { value }
+                                    BillingCountry { value }
+                                    BillingLatitude { value }
+                                    BillingLongitude { value }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+`;
+
+// Query 2 — primary contact mailing address per Opportunity. Runs separately so
+// that if OpportunityContactRole is not UI-API-accessible in this org, only this
+// query fails and we transparently fall back to the Account billing address.
+const ROLES_QUERY = gql`
+    query PrimaryContactAddresses($oppIds: [ID]) {
+        uiapi {
+            query {
+                Opportunity(where: { Id: { in: $oppIds } }, first: 250) {
+                    edges {
+                        node {
+                            Id
+                            OpportunityContactRoles(
+                                where: { IsPrimary: { eq: true } }
+                                first: 1
+                            ) {
+                                edges {
+                                    node {
+                                        Contact {
+                                            MailingStreet { value }
+                                            MailingCity { value }
+                                            MailingState { value }
+                                            MailingPostalCode { value }
+                                            MailingCountry { value }
+                                            MailingLatitude { value }
+                                            MailingLongitude { value }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+`;
 
 // Stage -> badge color. Order also drives the legend and stage filter.
 const STAGE_COLORS = {
@@ -17,9 +101,13 @@ const ALL = '';
 
 export default class ActiveProjectMap extends NavigationMixin(LightningElement) {
     @track selected;
-    projects = [];
+    @track projects = [];
     error;
     isLoading = true;
+
+    // Raw GraphQL results, merged into `projects` by buildProjects().
+    projectEdges;
+    contactAddressByOpp = {};
 
     // Filter state
     selectedStages = [];
@@ -27,16 +115,141 @@ export default class ActiveProjectMap extends NavigationMixin(LightningElement) 
     startFrom = null;
     startTo = null;
 
-    @wire(getActiveProjects)
-    wiredProjects({ data, error }) {
+    // ---- Data (GraphQL, no Apex) ----------------------------------------
+
+    @wire(graphql, { query: PROJECTS_QUERY })
+    handleProjectsResult({ data, errors }) {
         this.isLoading = false;
-        if (data) {
-            this.projects = data;
+        if (errors) {
+            this.error = this.reduceError(errors);
+            this.projectEdges = [];
+        } else if (data) {
             this.error = undefined;
-        } else if (error) {
-            this.error = this.reduceError(error);
-            this.projects = [];
+            this.projectEdges = data.uiapi.query.Project__c.edges;
         }
+        this.buildProjects();
+    }
+
+    get oppIds() {
+        if (!this.projectEdges) {
+            return [];
+        }
+        const ids = this.projectEdges
+            .map((e) => {
+                const opp = e.node.Parent_Opportunity_of_Project__r;
+                return opp ? opp.Id : null;
+            })
+            .filter(Boolean);
+        return [...new Set(ids)];
+    }
+
+    get roleVariables() {
+        return { oppIds: this.oppIds };
+    }
+
+    @wire(graphql, { query: ROLES_QUERY, variables: '$roleVariables' })
+    handleRolesResult({ data, errors }) {
+        // Errors here (e.g. OpportunityContactRole not UI-API-accessible) are
+        // non-fatal: we simply keep the Account billing fallback.
+        if (errors || !data) {
+            return;
+        }
+        const map = {};
+        const edges = data.uiapi.query.Opportunity.edges || [];
+        for (const e of edges) {
+            const roleEdges =
+                (e.node.OpportunityContactRoles &&
+                    e.node.OpportunityContactRoles.edges) ||
+                [];
+            if (roleEdges.length && roleEdges[0].node.Contact) {
+                const c = roleEdges[0].node.Contact;
+                map[e.node.Id] = {
+                    street: val(c.MailingStreet),
+                    city: val(c.MailingCity),
+                    state: val(c.MailingState),
+                    postalCode: val(c.MailingPostalCode),
+                    country: val(c.MailingCountry),
+                    latitude: val(c.MailingLatitude),
+                    longitude: val(c.MailingLongitude)
+                };
+            }
+        }
+        this.contactAddressByOpp = map;
+        this.buildProjects();
+    }
+
+    // Merge the two queries into the flat project shape the UI expects.
+    buildProjects() {
+        if (!this.projectEdges) {
+            return;
+        }
+        const roleMap = this.contactAddressByOpp || {};
+        this.projects = this.projectEdges.map((edge) => {
+            const n = edge.node;
+            const opp = n.Parent_Opportunity_of_Project__r;
+            const acct = opp ? opp.Account : null;
+            const oppId = opp ? opp.Id : null;
+
+            const addr = this.resolveAddress(
+                oppId ? roleMap[oppId] : null,
+                acct
+            );
+
+            return {
+                id: n.Id,
+                recordUrl: '/' + n.Id,
+                name: val(n.Name),
+                jobNumber: val(n.Job_Number_Project__c),
+                developer: n.Project_Developer__r
+                    ? val(n.Project_Developer__r.Name)
+                    : null,
+                stage: val(n.Project_Stage__c),
+                coordinator: n.Production_Coordinator__r
+                    ? val(n.Production_Coordinator__r.Name)
+                    : null,
+                leadCarpenter: n.Lead_Carpenter_on_Project__r
+                    ? val(n.Lead_Carpenter_on_Project__r.Name)
+                    : null,
+                smartsheetLink: val(n.Smartsheet_Link_Project__c),
+                startDate: val(n.Project_Start_Date__c),
+                closeDate: val(n.Project_Close_Date__c),
+                amount: opp ? val(opp.Amount) : null,
+                ...addr
+            };
+        });
+    }
+
+    // Prefer the primary contact's mailing address; fall back to Account billing.
+    resolveAddress(contactAddr, acct) {
+        const populated = (a) =>
+            a && (a.street || a.city || a.latitude != null);
+
+        if (populated(contactAddr)) {
+            return contactAddr;
+        }
+        if (acct) {
+            const billing = {
+                street: val(acct.BillingStreet),
+                city: val(acct.BillingCity),
+                state: val(acct.BillingState),
+                postalCode: val(acct.BillingPostalCode),
+                country: val(acct.BillingCountry),
+                latitude: val(acct.BillingLatitude),
+                longitude: val(acct.BillingLongitude)
+            };
+            if (populated(billing)) {
+                return billing;
+            }
+        }
+        return {
+            street: null,
+            city: null,
+            state: null,
+            postalCode: null,
+            country: null,
+            latitude: null,
+            longitude: null
+        };
     }
 
     // ---- Filtering -------------------------------------------------------
@@ -261,11 +474,14 @@ export default class ActiveProjectMap extends NavigationMixin(LightningElement) 
             .join(', ');
     }
 
-    reduceError(error) {
-        if (Array.isArray(error.body)) {
-            return error.body.map((e) => e.message).join(', ');
-        } else if (error.body && typeof error.body.message === 'string') {
-            return error.body.message;
+    reduceError(errors) {
+        if (Array.isArray(errors)) {
+            return errors
+                .map((e) => (e && e.message) || JSON.stringify(e))
+                .join(', ');
+        }
+        if (errors && errors.body && errors.body.message) {
+            return errors.body.message;
         }
         return 'Unknown error loading projects.';
     }
