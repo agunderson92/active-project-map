@@ -12,8 +12,7 @@ const PROJECTS_QUERY = gql`
         uiapi {
             query {
                 Project__c(
-                    where: { Project_Stage__c: { ne: "Archive" } }
-                    first: 250
+                    first: 500
                     orderBy: { Project_Start_Date__c: { order: DESC } }
                 ) {
                     edges {
@@ -86,7 +85,11 @@ const ROLES_QUERY = gql`
     }
 `;
 
+const ARCHIVE_STAGE = 'Archive';
+
 // Stage -> badge color. Order also drives the legend and stage filter.
+// Archive is included so it can be explicitly filtered in/out; it is hidden by
+// default (see filteredProjects).
 const STAGE_COLORS = {
     'PC Review': '#7f8de1',
     'Signed & Returned': '#5867e8',
@@ -94,7 +97,8 @@ const STAGE_COLORS = {
     'Pre-Project': '#16a5a5',
     Active: '#2e844a',
     'Punch List': '#dd7a01',
-    'Final Walkthrough': '#ca1b21'
+    'Final Walkthrough': '#ca1b21',
+    [ARCHIVE_STAGE]: '#a8a5a3'
 };
 const DEFAULT_COLOR = '#706e6b';
 const ALL = '';
@@ -261,7 +265,14 @@ export default class ActiveProjectMap extends NavigationMixin(LightningElement) 
         const to = this.startTo;
 
         return this.projects.filter((p) => {
-            if (stages.length && !stages.includes(p.stage)) {
+            if (stages.length) {
+                // Explicit selection: show only the chosen stages (Archive
+                // included only if the user checks it).
+                if (!stages.includes(p.stage)) {
+                    return false;
+                }
+            } else if (p.stage === ARCHIVE_STAGE) {
+                // Default view (no stage selected): hide archived projects.
                 return false;
             }
             if (dev && p.developer !== dev) {
@@ -292,9 +303,7 @@ export default class ActiveProjectMap extends NavigationMixin(LightningElement) 
 
     get resultCount() {
         const shown = this.filteredProjects.length;
-        return `${shown} of ${this.projects.length} active project${
-            this.projects.length === 1 ? '' : 's'
-        }`;
+        return `${shown} project${shown === 1 ? '' : 's'} shown`;
     }
 
     get stageOptions() {
