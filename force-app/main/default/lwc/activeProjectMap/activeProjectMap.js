@@ -103,6 +103,11 @@ const STAGE_COLORS = {
 const DEFAULT_COLOR = '#706e6b';
 const ALL = '';
 
+// Active stages (everything except Archive) — the default checked selection.
+const ACTIVE_STAGES = Object.keys(STAGE_COLORS).filter(
+    (s) => s !== ARCHIVE_STAGE
+);
+
 export default class ActiveProjectMap extends NavigationMixin(LightningElement) {
     @track selected;
     @track projects = [];
@@ -113,8 +118,8 @@ export default class ActiveProjectMap extends NavigationMixin(LightningElement) 
     projectEdges;
     contactAddressByOpp = {};
 
-    // Filter state
-    selectedStages = [];
+    // Filter state — all active stages checked by default (Archive off).
+    selectedStages = [...ACTIVE_STAGES];
     selectedDeveloper = ALL;
     startFrom = null;
     startTo = null;
@@ -265,14 +270,9 @@ export default class ActiveProjectMap extends NavigationMixin(LightningElement) 
         const to = this.startTo;
 
         return this.projects.filter((p) => {
-            if (stages.length) {
-                // Explicit selection: show only the chosen stages (Archive
-                // included only if the user checks it).
-                if (!stages.includes(p.stage)) {
-                    return false;
-                }
-            } else if (p.stage === ARCHIVE_STAGE) {
-                // Default view (no stage selected): hide archived projects.
+            // Show only projects whose stage is currently checked. No boxes
+            // checked = nothing shown.
+            if (!stages.includes(p.stage)) {
                 return false;
             }
             if (dev && p.developer !== dev) {
@@ -328,8 +328,11 @@ export default class ActiveProjectMap extends NavigationMixin(LightningElement) 
     }
 
     get filtersActive() {
+        const stagesAreDefault =
+            this.selectedStages.length === ACTIVE_STAGES.length &&
+            ACTIVE_STAGES.every((s) => this.selectedStages.includes(s));
         return (
-            this.selectedStages.length > 0 ||
+            !stagesAreDefault ||
             this.selectedDeveloper !== ALL ||
             !!this.startFrom ||
             !!this.startTo
@@ -357,7 +360,7 @@ export default class ActiveProjectMap extends NavigationMixin(LightningElement) 
     }
 
     handleClearFilters() {
-        this.selectedStages = [];
+        this.selectedStages = [...ACTIVE_STAGES];
         this.selectedDeveloper = ALL;
         this.startFrom = null;
         this.startTo = null;
