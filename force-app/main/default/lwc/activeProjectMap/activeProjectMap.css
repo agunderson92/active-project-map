@@ -40,19 +40,32 @@
 .map-layout {
     display: flex;
     gap: 1rem;
-    min-height: 32rem;
+    /* Bounded, viewport-flexible height so the map never overflows into
+       sibling page components on large screens. */
+    height: clamp(28rem, 60vh, 50rem);
 }
 
 .map-pane {
     flex: 1 1 65%;
     min-width: 0;
-    height: 32rem;
+    height: 100%;
+    overflow: hidden; /* clip the map so it can't bleed past its box */
+}
+
+/* lightning-map needs an explicit height; without it the map renders at its
+   natural size and overflows its container. */
+.map-pane lightning-map {
+    display: block;
+    height: 100%;
+    width: 100%;
 }
 
 .detail-pane {
     flex: 1 1 35%;
     min-width: 16rem;
     max-width: 24rem;
+    height: 100%;
+    overflow-y: auto;
 }
 
 .detail-card {
@@ -151,8 +164,14 @@
 @media (max-width: 48rem) {
     .map-layout {
         flex-direction: column;
+        height: auto; /* stack: let map + detail take their own heights */
+    }
+    .map-pane {
+        height: 28rem;
+        flex: none;
     }
     .detail-pane {
         max-width: none;
+        height: auto;
     }
 }
