@@ -1,0 +1,139 @@
+<template>
+    <lightning-card title="Active Project Map" icon-name="standard:location">
+        <div slot="actions" class="legend">
+            <template for:each={legend} for:item="item">
+                <span key={item.stage} class="legend-item">
+                    <span class="legend-swatch" style={item.style}></span>
+                    <span class="legend-label">{item.stage}</span>
+                </span>
+            </template>
+        </div>
+
+        <div class="slds-p-horizontal_small">
+            <template if:true={isLoading}>
+                <lightning-spinner alternative-text="Loading projects" size="medium"></lightning-spinner>
+            </template>
+
+            <template if:true={error}>
+                <div class="slds-text-color_error slds-p-around_medium">{error}</div>
+            </template>
+
+            <template if:true={hasProjects}>
+                <div class="filter-bar">
+                    <lightning-checkbox-group
+                        class="filter-stages"
+                        label="Stage"
+                        options={stageOptions}
+                        value={selectedStages}
+                        onchange={handleStageChange}
+                    ></lightning-checkbox-group>
+
+                    <div class="filter-controls">
+                        <lightning-combobox
+                            label="Developer"
+                            value={selectedDeveloper}
+                            options={developerOptions}
+                            onchange={handleDeveloperChange}
+                        ></lightning-combobox>
+                        <lightning-input
+                            type="date"
+                            label="Start on/after"
+                            value={startFrom}
+                            onchange={handleStartFromChange}
+                        ></lightning-input>
+                        <lightning-input
+                            type="date"
+                            label="Start on/before"
+                            value={startTo}
+                            onchange={handleStartToChange}
+                        ></lightning-input>
+                        <div class="filter-meta">
+                            <span class="result-count">{resultCount}</span>
+                            <template if:true={filtersActive}>
+                                <lightning-button
+                                    variant="base"
+                                    label="Reset filters"
+                                    onclick={handleClearFilters}
+                                ></lightning-button>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </template>
+
+            <template if:true={hasMarkers}>
+                <div class="map-layout">
+                    <div class="map-pane">
+                        <lightning-map
+                            map-markers={markers}
+                            markers-title="Active Projects"
+                            list-view="hidden"
+                            onmarkerselect={handleMarkerSelect}
+                        ></lightning-map>
+                    </div>
+
+                    <div class="detail-pane">
+                        <template if:true={selected}>
+                            <div class="detail-card">
+                                <div class="detail-header">
+                                    <span class="stage-badge" style={selected.badgeStyle}>{selected.stage}</span>
+                                    <h2 class="detail-title">{selected.name}</h2>
+                                </div>
+                                <dl class="detail-list">
+                                    <div class="detail-row"><dt>Job #</dt><dd>{selected.jobNumber}</dd></div>
+                                    <div class="detail-row"><dt>Amount</dt><dd>{selected.amountLabel}</dd></div>
+                                    <div class="detail-row"><dt>Developer</dt><dd>{selected.developer}</dd></div>
+                                    <div class="detail-row"><dt>Prod. Coordinator</dt><dd>{selected.coordinator}</dd></div>
+                                    <div class="detail-row"><dt>Lead Carpenter</dt><dd>{selected.leadCarpenter}</dd></div>
+                                    <div class="detail-row"><dt>Start</dt><dd>{selected.startLabel}</dd></div>
+                                    <div class="detail-row"><dt>Close</dt><dd>{selected.closeLabel}</dd></div>
+                                    <div class="detail-row"><dt>Address</dt><dd>{selected.addressLabel}</dd></div>
+                                </dl>
+                                <div class="detail-actions">
+                                    <lightning-button
+                                        variant="brand"
+                                        label="Open Project"
+                                        icon-name="utility:open"
+                                        onclick={handleOpenRecord}
+                                    ></lightning-button>
+                                    <template if:true={selected.smartsheetLink}>
+                                        <lightning-button
+                                            variant="neutral"
+                                            label="Smartsheet"
+                                            icon-name="utility:link"
+                                            class="slds-m-left_x-small"
+                                            onclick={handleOpenSmartsheet}
+                                        ></lightning-button>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                        <template if:false={selected}>
+                            <div class="detail-placeholder">
+                                Select a pin to see project details.
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </template>
+
+            <template if:false={hasMarkers}>
+                <template if:false={isLoading}>
+                    <template if:false={error}>
+                        <template if:true={hasProjects}>
+                            <div class="slds-p-around_medium slds-text-color_weak">
+                                No projects match the current filters (or matching
+                                projects have no mappable address).
+                            </div>
+                        </template>
+                        <template if:false={hasProjects}>
+                            <div class="slds-p-around_medium slds-text-color_weak">
+                                No active projects with a mappable address were found.
+                            </div>
+                        </template>
+                    </template>
+                </template>
+            </template>
+        </div>
+    </lightning-card>
+</template>
